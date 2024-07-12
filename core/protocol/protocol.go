@@ -1,7 +1,29 @@
 package protocol
 
-// Make message according to 'Redis serialization protocol specification'
+func MakeSimpleString(b []byte) RedisMessage {
+	return &SimpleString{
+		data: b,
+	}
+}
 
-func MakeSimpleString([]byte) RedisMessage {
-	return &SimpleString{}
+func MakeBulkString(b []byte) RedisMessage {
+	return &BulkString{
+		data: b,
+	}
+}
+
+func MakeArray(b [][]byte) RedisMessage {
+	return &Array{
+		data: b,
+	}
+}
+
+func MakeError(err error) RedisMessage {
+	return &SimpleError{
+		data: []byte(err.Error()),
+	}
+}
+
+func MakeNil() RedisMessage {
+	return &SimpleNilInstance
 }
