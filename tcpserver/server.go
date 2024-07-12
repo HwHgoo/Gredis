@@ -3,18 +3,23 @@ package tcpserver
 import (
 	"context"
 	"net"
+
+	"github.com/HwHgoo/Gredis/core/server"
 )
 
 type Server struct {
-	handler Handler
+	handler *Handler
 }
 
-func MakeServer() *Server {
-	return &Server{}
+func MakeTcpServer() *Server {
+	redis := server.MakeServer()
+	return &Server{
+		handler: MakeHandler(redis),
+	}
 }
 
 func (s *Server) ListenAndServe() {
-	lsn, err := net.Listen("tcp", ":8080")
+	lsn, err := net.Listen("tcp", ":3301")
 	if err != nil {
 		return
 	}
