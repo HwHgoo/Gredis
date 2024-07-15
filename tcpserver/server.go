@@ -2,7 +2,10 @@ package tcpserver
 
 import (
 	"context"
+	"log"
 	"net"
+	"os"
+	"sync"
 
 	"github.com/HwHgoo/Gredis/core/server"
 )
@@ -18,12 +21,21 @@ func MakeTcpServer() *Server {
 	}
 }
 
-func (s *Server) ListenAndServe() {
+func (s *Server) ListenAndServe(signals <-chan os.Signal) {
 	lsn, err := net.Listen("tcp", ":3301")
 	if err != nil {
 		return
 	}
 
+	go func() {
+		sig := <-signals
+		log.Println("received signal:", sig)
+		_ = lsn.Close()
+		log.Println("closing handler")
+		s.handler.Close()
+	}()
+
+	waitHandler := &sync.WaitGroup{}
 	for {
 		conn, err := lsn.Accept()
 		if err != nil {
@@ -31,10 +43,16 @@ func (s *Server) ListenAndServe() {
 				continue
 			}
 
+			log.Println(err)
 			break
 		}
 
-		go s.handler.Handle(context.Background(), conn)
-
+		waitHandler.Add(1)
+		go func() {
+			defer waitHandler.Done()
+			s.handler.Handle(context.Background(), conn)
+		}()
 	}
+
+	waitHandler.Wait()
 }

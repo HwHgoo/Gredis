@@ -1,6 +1,8 @@
 package server
 
 import (
+	"log"
+
 	"github.com/HwHgoo/Gredis/connection"
 	"github.com/HwHgoo/Gredis/core/db"
 	"github.com/HwHgoo/Gredis/core/protocol"
@@ -26,4 +28,8 @@ func MakeServer() *Server {
 func (s *Server) Exec(c *connection.Connection, args [][]byte) protocol.RedisMessage {
 	db := s.databases[c.GetSelectedDb()]
 	return db.Exec(args)
+}
+
+func (s *Server) Close() {
+	log.Println("Redis server closing.")
 }

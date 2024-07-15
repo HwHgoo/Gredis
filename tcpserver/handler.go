@@ -3,6 +3,7 @@ package tcpserver
 import (
 	"context"
 	"io"
+	"log"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -30,6 +31,7 @@ func MakeHandler(redis_server *server.Server) *Handler {
 }
 
 func (h *Handler) Handle(ctx context.Context, conn net.Conn) {
+	defer log.Println("End handling")
 	if h.closing.Load() {
 		conn.Close()
 		return
@@ -37,16 +39,15 @@ func (h *Handler) Handle(ctx context.Context, conn net.Conn) {
 
 	c := connection.MakeConnection(conn)
 
-	{
-		h.conn_lock.Lock()
-		defer h.conn_lock.Unlock()
-		h.connections[c] = struct{}{}
-	}
+	h.conn_lock.Lock()
+	h.connections[c] = struct{}{}
+	h.conn_lock.Unlock()
 
 	ch := parser.Parse(conn)
 	for payload := range ch {
 		if err := payload.Err(); err != nil {
 			if err == io.EOF { // connection closed
+				log.Println("Connecton closed")
 				break
 			}
 
@@ -60,4 +61,15 @@ func (h *Handler) Handle(ctx context.Context, conn net.Conn) {
 		c.Write(result.Bytes())
 	}
 
+}
+
+func (h *Handler) Close() {
+	h.closing.Store(true)
+	h.conn_lock.Lock()
+	for c := range h.connections {
+		c.Close()
+	}
+	h.conn_lock.Unlock()
+
+	h.redis.Close()
 }

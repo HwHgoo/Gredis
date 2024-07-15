@@ -19,3 +19,7 @@ func (c *Connection) Write(data []byte) error {
 func (c *Connection) GetSelectedDb() int {
 	return c.selectedDb
 }
+
+func (c *Connection) Close() {
+	c.conn.Close()
+}
