@@ -110,3 +110,15 @@ func (a *Array) Bytes() []byte {
 func (a *Array) Args() [][]byte {
 	return a.data
 }
+
+type Integer struct {
+	b []byte
+}
+
+func (i *Integer) Bytes() []byte {
+	return i.b
+}
+
+func (a *Integer) Args() [][]byte {
+	return nil
+}
