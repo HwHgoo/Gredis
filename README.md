@@ -2,5 +2,5 @@
 
 ## Goal of this project
 
-- Implement Redis server and client in Golang
+- Implement Redis server in Golang
 - Deeper dive into Redis and Golang
