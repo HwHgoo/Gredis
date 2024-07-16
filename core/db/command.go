@@ -9,7 +9,10 @@ import (
 type CommandExecutor func(db *Database, args [][]byte) protocol.RedisMessage
 
 type Command struct {
-	name  string
+	name string
+	// including command itself
+	// positive arity means exact number of arguments
+	// negative arity means at least abs(arity) arguments
 	arity int
 	exec  CommandExecutor
 }
