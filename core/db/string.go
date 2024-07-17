@@ -29,6 +29,19 @@ const (
 	update        // xx
 )
 
+const (
+	flag_no_flag = 1 << iota
+	flag_set_nx
+	flag_set_xx
+	flag_ex
+	flag_px
+	flag_keepttl
+	flag_set_get
+	flag_exat
+	flag_pxat
+	flag_persist
+)
+
 func get(db *Database, args [][]byte) protocol.RedisMessage {
 	key := string(args[0])
 	bs, err := db.getAsString(key)
@@ -41,6 +54,115 @@ func get(db *Database, args [][]byte) protocol.RedisMessage {
 	}
 
 	return protocol.MakeBulkString(bs)
+}
+
+// GETDEL get the value of key and delete the key
+func getdel(db *Database, args [][]byte) protocol.RedisMessage {
+	key := string(args[0])
+	s, msg := db.getAsString(key)
+	if msg != nil {
+		return msg
+	}
+
+	if s == nil {
+		return &protocol.RedisNil
+	}
+
+	db.Delete(key)
+	return protocol.MakeBulkString(s)
+}
+
+// GETEX get the value of key and optionally set its expiration time
+func getex(db *Database, args [][]byte) protocol.RedisMessage {
+	key := string(args[0])
+	flag := flag_no_flag
+	unixms := time.Now().UnixMilli()
+	ttl := time.Duration(0)
+
+	for i := 1; i < len(args); i++ {
+		arg := strings.ToLower(string(args[i]))
+		if arg == "ex" {
+			if flag != flag_no_flag || i+1 >= len(args) {
+				return &protocol.SyntaxError
+			}
+			flag |= flag_ex
+			ex, err := strconv.ParseInt(string(args[i+1]), 10, 64)
+			if err != nil {
+				return &protocol.InvalidNumberError
+			}
+			if ex <= 0 {
+				return &protocol.InvalidExpireTimeError
+			}
+			ttl = time.Second * time.Duration(ex)
+			i++
+		} else if arg == "px" {
+			if flag != flag_no_flag || i+1 >= len(args) {
+				return &protocol.SyntaxError
+			}
+			flag |= flag_px
+			px, err := strconv.ParseInt(string(args[i+1]), 10, 64)
+			if err != nil {
+				return &protocol.InvalidNumberError
+			}
+			if px <= 0 {
+				return &protocol.InvalidExpireTimeError
+			}
+			ttl = time.Millisecond * time.Duration(px)
+			i++
+		} else if arg == "exat" {
+			if flag != flag_no_flag || i+1 >= len(args) {
+				return &protocol.SyntaxError
+			}
+			flag |= flag_exat
+			exat, err := strconv.ParseInt(string(args[i+1]), 10, 64)
+			if err != nil {
+				return &protocol.InvalidNumberError
+			}
+			if exat <= 0 {
+				return &protocol.InvalidExpireTimeError
+			}
+			ttl = time.Second * time.Duration(exat-unixms/1000)
+			i++
+		} else if arg == "pxat" {
+			if flag != flag_no_flag || i+1 >= len(args) {
+				return &protocol.SyntaxError
+			}
+			flag |= flag_pxat
+			pxat, err := strconv.ParseInt(string(args[i+1]), 10, 64)
+			if err != nil {
+				return &protocol.InvalidNumberError
+			}
+			if pxat <= 0 {
+				return &protocol.InvalidExpireTimeError
+			}
+			ttl = time.Millisecond * time.Duration(pxat-unixms)
+			i++
+		} else if arg == "persist" {
+			if flag != flag_no_flag {
+				return &protocol.SyntaxError
+			}
+
+			flag |= flag_persist
+		}
+	}
+
+	s, err := db.getAsString(key)
+	if err != nil {
+		return err
+	}
+	if s == nil {
+		return &protocol.RedisNil
+	}
+
+	if flag != flag_no_flag {
+		if flag&flag_persist != 0 {
+			db.Persist(key)
+		} else {
+			db.Expire(key, time.Now().Add(ttl))
+		}
+	}
+
+	return protocol.MakeBulkString(s)
 }
 
 func set(db *Database, args [][]byte) protocol.RedisMessage {
@@ -165,4 +287,6 @@ func init() {
 	RegisterCommand("get", 2, get)
 	RegisterCommand("set", -3, set)
 	RegisterCommand("del", -2, del)
+	RegisterCommand("getdel", 2, getdel)
+	RegisterCommand("getex", -2, getex)
 }
