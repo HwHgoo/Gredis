@@ -42,6 +42,117 @@ const (
 	flag_persist
 )
 
+const (
+	command_set = iota
+	command_get
+)
+
+/* The parseExtendedStringArgumentOrReply function parses the extended string argument used in SET and GET command.
+ * GET specific commands - PERSIST
+ * SET specific commands - XX/NX/GET/KEEPTTL
+ * Common commands - EX/PX/EXAT/PXAT
+ * Function takes arguments of command in which key not included, flags and command_type which can be command_set or command_get.
+ * If there are any syntax violations protocol.SyntaxError is returned else nil is returned.
+ * If nil is returned, a duration value is also returned if needed.
+ * The unit of duraton is always in milliseconds.
+ */
+func parseExtendedStringArgumentOrReply(args [][]byte, flags *int, command_type int) (protocol.RedisMessage, time.Duration) {
+	d := time.Duration(0)
+	unixms := time.Now().UnixMilli()
+	for i := 0; i < len(args); i++ {
+		arg := strings.ToLower(string(args[i]))
+		if arg == "ex" {
+			if withFlags(*flags, flag_px, flag_exat, flag_pxat, flag_persist, flag_keepttl) ||
+				i+1 >= len(args) {
+				return &protocol.SyntaxError, 0
+			}
+			*flags |= flag_ex
+			ex, err := strconv.ParseInt(string(args[i+1]), 10, 64)
+			if err != nil {
+				return &protocol.InvalidNumberError, 0
+			}
+			if ex <= 0 {
+				return &protocol.InvalidExpireTimeError, 0
+			}
+			d = time.Millisecond * time.Duration(ex*1000)
+		} else if arg == "px" {
+			if withFlags(*flags, flag_ex, flag_exat, flag_pxat, flag_persist, flag_keepttl) ||
+				i+1 >= len(args) {
+				return &protocol.SyntaxError, 0
+			}
+
+			*flags |= flag_px
+			px, err := strconv.ParseInt(string(args[i+1]), 10, 64)
+			if err != nil {
+				return &protocol.InvalidNumberError, 0
+			}
+			if px <= 0 {
+				return &protocol.InvalidExpireTimeError, 0
+			}
+			d = time.Millisecond * time.Duration(px)
+		} else if arg == "exat" {
+			if withFlags(*flags, flag_px, flag_ex, flag_pxat, flag_persist, flag_keepttl) ||
+				i+1 >= len(args) {
+				return &protocol.SyntaxError, 0
+			}
+			*flags |= flag_exat
+			exat, err := strconv.ParseInt(string(args[i+1]), 10, 64)
+			if err != nil {
+				return &protocol.InvalidNumberError, 0
+			}
+			if exat <= 0 {
+				return &protocol.InvalidExpireTimeError, 0
+			}
+			d = time.Millisecond * time.Duration(exat*1000-unixms)
+		} else if arg == "pxat" {
+			if withFlags(*flags, flag_px, flag_ex, flag_exat, flag_persist, flag_keepttl) ||
+				i+1 >= len(args) {
+				return &protocol.SyntaxError, 0
+			}
+			*flags |= flag_pxat
+			pxat, err := strconv.ParseInt(string(args[i+1]), 10, 64)
+			if err != nil {
+				return &protocol.InvalidNumberError, 0
+			}
+			if pxat <= 0 {
+				return &protocol.InvalidExpireTimeError, 0
+			}
+			d = time.Millisecond * time.Duration(pxat-unixms)
+		} else if arg == "persist" {
+			if command_type != command_get ||
+				withFlags(*flags, flag_ex, flag_px, flag_exat, flag_pxat) {
+				return &protocol.SyntaxError, 0
+			}
+			*flags |= flag_persist
+		} else if arg == "nx" {
+			if command_type != command_set ||
+				withFlags(*flags, flag_set_xx) {
+				return &protocol.SyntaxError, 0
+			}
+			*flags |= flag_set_nx
+		} else if arg == "xx" {
+			if command_type != command_set ||
+				withFlags(*flags, flag_set_nx) {
+				return &protocol.SyntaxError, 0
+			}
+			*flags |= flag_set_xx
+		} else if arg == "get" {
+			if command_type != command_set {
+				return &protocol.SyntaxError, 0
+			}
+			*flags |= flag_set_get
+		} else if arg == "keepttl" {
+			if command_type != command_set ||
+				withFlags(*flags, flag_ex, flag_px, flag_exat, flag_pxat) {
+				return &protocol.SyntaxError, 0
+			}
+			*flags |= flag_keepttl
+		}
+	}
+
+	return nil, d
+}
+
 func get(db *Database, args [][]byte) protocol.RedisMessage {
 	key := string(args[0])
 	bs, err := db.getAsString(key)
@@ -76,74 +187,9 @@ func getdel(db *Database, args [][]byte) protocol.RedisMessage {
 func getex(db *Database, args [][]byte) protocol.RedisMessage {
 	key := string(args[0])
 	flag := flag_no_flag
-	unixms := time.Now().UnixMilli()
-	ttl := time.Duration(0)
-
-	for i := 1; i < len(args); i++ {
-		arg := strings.ToLower(string(args[i]))
-		if arg == "ex" {
-			if flag != flag_no_flag || i+1 >= len(args) {
-				return &protocol.SyntaxError
-			}
-			flag |= flag_ex
-			ex, err := strconv.ParseInt(string(args[i+1]), 10, 64)
-			if err != nil {
-				return &protocol.InvalidNumberError
-			}
-			if ex <= 0 {
-				return &protocol.InvalidExpireTimeError
-			}
-			ttl = time.Second * time.Duration(ex)
-			i++
-		} else if arg == "px" {
-			if flag != flag_no_flag || i+1 >= len(args) {
-				return &protocol.SyntaxError
-			}
-			flag |= flag_px
-			px, err := strconv.ParseInt(string(args[i+1]), 10, 64)
-			if err != nil {
-				return &protocol.InvalidNumberError
-			}
-			if px <= 0 {
-				return &protocol.InvalidExpireTimeError
-			}
-			ttl = time.Millisecond * time.Duration(px)
-			i++
-		} else if arg == "exat" {
-			if flag != flag_no_flag || i+1 >= len(args) {
-				return &protocol.SyntaxError
-			}
-			flag |= flag_exat
-			exat, err := strconv.ParseInt(string(args[i+1]), 10, 64)
-			if err != nil {
-				return &protocol.InvalidNumberError
-			}
-			if exat <= 0 {
-				return &protocol.InvalidExpireTimeError
-			}
-			ttl = time.Second * time.Duration(exat-unixms/1000)
-			i++
-		} else if arg == "pxat" {
-			if flag != flag_no_flag || i+1 >= len(args) {
-				return &protocol.SyntaxError
-			}
-			flag |= flag_pxat
-			pxat, err := strconv.ParseInt(string(args[i+1]), 10, 64)
-			if err != nil {
-				return &protocol.InvalidNumberError
-			}
-			if pxat <= 0 {
-				return &protocol.InvalidExpireTimeError
-			}
-			ttl = time.Millisecond * time.Duration(pxat-unixms)
-			i++
-		} else if arg == "persist" {
-			if flag != flag_no_flag {
-				return &protocol.SyntaxError
-			}
-
-			flag |= flag_persist
-		}
+	err, ttl := parseExtendedStringArgumentOrReply(args[1:], &flag, command_get)
+	if err != nil {
+		return err
 	}
 
 	s, err := db.getAsString(key)
@@ -289,4 +335,14 @@ func init() {
 	RegisterCommand("del", -2, del)
 	RegisterCommand("getdel", 2, getdel)
 	RegisterCommand("getex", -2, getex)
+}
+
+// withFlags checks if the given flag contains some of the given flags.
+func withFlags(flag int, flags ...int) bool {
+	for _, f := range flags {
+		if flag&f != 0 {
+			return true
+		}
+	}
+	return false
 }
