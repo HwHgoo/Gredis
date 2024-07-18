@@ -12,7 +12,8 @@ type redisErrorMessage struct {
 var (
 	WrongTypeError         = redisErrorMessage{[]byte("-WRONGTYPE Operation against a key holding the wrong kind of value\r\n")}
 	SyntaxError            = redisErrorMessage{[]byte("-ERR syntax error\r\n")}
-	InvalidNumberError     = redisErrorMessage{[]byte("-ERR value is not an integer or out of range\r\n")}
+	InvalidIntegerError    = redisErrorMessage{[]byte("-ERR value is not an integer or out of range\r\n")}
+	InvalidFloatError      = redisErrorMessage{[]byte("-ERR value is not an float\r\n")}
 	InvalidExpireTimeError = redisErrorMessage{[]byte("-ERR invalid expire time in EXPIRE command\r\n")}
 )
 
