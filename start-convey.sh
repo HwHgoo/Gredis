@@ -1,0 +1,1 @@
+nohup goconvey -host 0.0.0.0 -port 7999 -excludedDirs bin 2>&1 > bin/convey.log &
