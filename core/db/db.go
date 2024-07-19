@@ -17,6 +17,7 @@ type Database struct {
 	expires *datastructure.ConcurrentMap[time.Time]
 }
 
+// TODO optimize for operation like mget, mset
 func MakeDatabase() *Database {
 	return &Database{
 		data:    datastructure.MakeNewConcurrentMap[any](),
@@ -60,7 +61,7 @@ func (db *Database) Delete(key string) int {
 	if !ok {
 		return 0
 	}
-	
+
 	db.data.Delete(key)
 	return 1
 }

@@ -21,7 +21,7 @@ func Parse(stream io.Reader) <-chan *Payload {
 func parse(stream io.Reader, payloads chan<- *Payload) {
 	r := bufio.NewReader(stream)
 	for {
-		buf, err := r.ReadBytes('\n')
+		buf, err := r.ReadSlice('\n')
 		if err != nil {
 			close(payloads)
 			break
@@ -48,9 +48,9 @@ func parseArray(buf []byte, r *bufio.Reader, ch chan<- *Payload) error {
 		porotocolError(ch, "invalid array header: "+string(buf[1:]))
 		return nil
 	}
-	args := make([][]byte, 0, 1)
+	bulks := make([]protocol.RedisMessage, 0)
 	for i := 0; i < int(l); i++ {
-		buf, err := r.ReadBytes('\n')
+		buf, err := r.ReadSlice('\n')
 		if err != nil {
 			return nil
 		}
@@ -72,16 +72,16 @@ func parseArray(buf []byte, r *bufio.Reader, ch chan<- *Payload) error {
 				return err
 			}
 
-			args = append(args, bulk)
+			bulks = append(bulks, protocol.MakeBulkString(bulk))
 
-			_, err = r.ReadBytes('\n')
+			_, err = r.ReadSlice('\n')
 			if err != nil {
 				return nil
 			}
 		}
 	}
 
-	ch <- &Payload{msg: protocol.MakeArray(args)}
+	ch <- &Payload{msg: protocol.MakeArray(bulks)}
 
 	return nil
 }
@@ -98,7 +98,7 @@ func parseBulk(buf []byte, r *bufio.Reader, ch chan<- *Payload) error {
 	if err != nil {
 		return err
 	}
-	_, err = r.ReadBytes('\n')
+	_, err = r.ReadSlice('\n')
 	if err != nil {
 		return err
 	}

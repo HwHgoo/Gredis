@@ -6,7 +6,8 @@ import (
 	"github.com/HwHgoo/Gredis/core/protocol"
 )
 
-type CommandExecutor func(db *Database, args [][]byte) protocol.RedisMessage
+type CommandParams [][]byte
+type CommandExecutor func(db *Database, args CommandParams) protocol.RedisMessage
 
 type Command struct {
 	name string
