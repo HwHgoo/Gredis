@@ -15,6 +15,7 @@ var (
 	InvalidIntegerError    = redisErrorMessage{[]byte("-ERR value is not an integer or out of range\r\n")}
 	InvalidFloatError      = redisErrorMessage{[]byte("-ERR value is not an float\r\n")}
 	InvalidExpireTimeError = redisErrorMessage{[]byte("-ERR invalid expire time in EXPIRE command\r\n")}
+	OffsetOutofRangeError  = redisErrorMessage{[]byte("-ERR offset out of range\r\n")}
 )
 
 func (e redisErrorMessage) Bytes() []byte { return e.msg }

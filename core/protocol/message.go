@@ -80,35 +80,28 @@ func (sn *SimpleNil) Bytes() []byte { return sn.data }
 func (sn *SimpleNil) Args() [][]byte { return nil }
 
 type Array struct {
-	data [][]byte
+	elements []RedisMessage
 }
 
 func (a *Array) Bytes() []byte {
-	l := len(a.data)
-	lc := []byte(strconv.Itoa(l))
-	totalLen := 1 + len(lc) + 2
-	for i := 0; i < len(a.data); i++ {
-		totalLen += 1 + len(a.data[i]) + 2
+	length := strconv.Itoa(len(a.elements))
+	data := []byte("*" + length + "\r\n")
+	for i := range a.elements {
+		if a == nil {
+			continue
+		}
+		data = append(data, a.elements[i].Bytes()...)
 	}
 
-	bs := make([]byte, totalLen)
-	bs[0] = '*'
-	copy(bs[1:], lc)
-	bs[1+len(lc)], bs[2+len(lc)] = '\r', '\n'
-
-	offset := 1 + len(lc) + 2
-	for i := 0; i < len(a.data); i++ {
-		bs[offset] = '$'
-		copy(bs[offset+1:], a.data[i])
-		offset += 1 + len(a.data[i])
-		bs[offset], bs[offset+1] = '\r', '\n'
-		offset += 2
-	}
-	return bs
+	return data
 }
 
 func (a *Array) Args() [][]byte {
-	return a.data
+	args := make([][]byte, 0)
+	for i := range a.elements {
+		args = append(args, a.elements[i].Args()...)
+	}
+	return args
 }
 
 type Integer struct {

@@ -19,9 +19,9 @@ func MakeInteger(i int64) RedisMessage {
 	return &Integer{b: []byte(":" + ai + "\r\n")}
 }
 
-func MakeArray(b [][]byte) RedisMessage {
+func MakeArray(elements []RedisMessage) RedisMessage {
 	return &Array{
-		data: b,
+		elements: elements,
 	}
 }
 
