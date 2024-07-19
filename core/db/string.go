@@ -157,7 +157,7 @@ func parseExtendedStringArgumentOrReply(args [][]byte, flags *int, command_type 
 
 /************************************* GET ************************************/
 
-func get(db *Database, args [][]byte) protocol.RedisMessage {
+func getCommand(db *Database, args [][]byte) protocol.RedisMessage {
 	key := string(args[0])
 	bs, err := db.getAsString(key)
 	if err != nil {
@@ -172,7 +172,7 @@ func get(db *Database, args [][]byte) protocol.RedisMessage {
 }
 
 // GETDEL get the value of key and delete the key
-func getdel(db *Database, args [][]byte) protocol.RedisMessage {
+func getdelCommand(db *Database, args [][]byte) protocol.RedisMessage {
 	key := string(args[0])
 	s, msg := db.getAsString(key)
 	if msg != nil {
@@ -188,7 +188,7 @@ func getdel(db *Database, args [][]byte) protocol.RedisMessage {
 }
 
 // GETEX get the value of key and optionally set its expiration time
-func getex(db *Database, args [][]byte) protocol.RedisMessage {
+func getexCommand(db *Database, args [][]byte) protocol.RedisMessage {
 	key := string(args[0])
 	flag := flag_no_flag
 	err, ttl := parseExtendedStringArgumentOrReply(args[1:], &flag, command_get)
@@ -216,7 +216,7 @@ func getex(db *Database, args [][]byte) protocol.RedisMessage {
 }
 
 // GETRANGE get a substring of the string stored at key
-func getrange(db *Database, args [][]byte) protocol.RedisMessage {
+func getrangeCommand(db *Database, args [][]byte) protocol.RedisMessage {
 	key := string(args[0])
 	start, err := strconv.ParseInt(string(args[1]), 10, 64)
 	if err != nil {
@@ -265,12 +265,12 @@ func incrdecrGeneric(db *Database, key string, delta int64) protocol.RedisMessag
 	return protocol.MakeInteger(n)
 }
 
-func incr(db *Database, args [][]byte) protocol.RedisMessage {
+func incrCommand(db *Database, args [][]byte) protocol.RedisMessage {
 	key := string(args[0])
 	return incrdecrGeneric(db, key, 1)
 }
 
-func incrby(db *Database, args [][]byte) protocol.RedisMessage {
+func incrbyCommand(db *Database, args [][]byte) protocol.RedisMessage {
 	key := string(args[0])
 	delta, err := strconv.ParseInt(string(args[1]), 10, 64)
 	if err != nil {
@@ -280,12 +280,12 @@ func incrby(db *Database, args [][]byte) protocol.RedisMessage {
 	return incrdecrGeneric(db, key, delta)
 }
 
-func decr(db *Database, args [][]byte) protocol.RedisMessage {
+func decrCommand(db *Database, args [][]byte) protocol.RedisMessage {
 	key := string(args[0])
 	return incrdecrGeneric(db, key, -1)
 }
 
-func decrby(db *Database, args [][]byte) protocol.RedisMessage {
+func decrbyCommand(db *Database, args [][]byte) protocol.RedisMessage {
 	key := string(args[0])
 	delta, err := strconv.ParseInt(string(args[1]), 10, 64)
 	if err != nil {
@@ -300,7 +300,7 @@ var bigfloats = pool.MakePool(1024, func() *big.Float {
 })
 
 // NOT as sensiable as redis
-func incrbyfloat(db *Database, args [][]byte) protocol.RedisMessage {
+func incrbyfloatCommand(db *Database, args [][]byte) protocol.RedisMessage {
 	key := string(args[0])
 	var err error
 	delta := bigfloats.Get()
@@ -329,7 +329,7 @@ func incrbyfloat(db *Database, args [][]byte) protocol.RedisMessage {
 
 /************************************* SET ************************************/
 
-func set(db *Database, args [][]byte) protocol.RedisMessage {
+func setCommand(db *Database, args [][]byte) protocol.RedisMessage {
 	key := string(args[0])
 	value := args[1]
 	flag := flag_no_flag
@@ -355,7 +355,7 @@ func set(db *Database, args [][]byte) protocol.RedisMessage {
 	}
 
 	if withFlags(flag, flag_set_get) {
-		return get(db, args)
+		return getCommand(db, args)
 	}
 
 	if result == global.OK {
@@ -364,7 +364,7 @@ func set(db *Database, args [][]byte) protocol.RedisMessage {
 	return &protocol.RedisNil
 }
 
-func del(db *Database, args [][]byte) protocol.RedisMessage {
+func delCommand(db *Database, args [][]byte) protocol.RedisMessage {
 	keys := make([]string, 0, len(args))
 	for _, arg := range args {
 		keys = append(keys, string(arg))
@@ -378,18 +378,40 @@ func del(db *Database, args [][]byte) protocol.RedisMessage {
 	return protocol.MakeInteger(int64(result))
 }
 
+/************************************* OTHER ************************************/
+
+func appendCommand(db *Database, args [][]byte) protocol.RedisMessage {
+	key := string(args[0])
+	suffix := args[1]
+
+	prefix, msg := db.getAsString(key)
+	if msg != nil {
+		return msg
+	}
+
+	if prefix == nil {
+		db.Set(key, suffix)
+		return protocol.MakeInteger(int64(len(suffix)))
+	}
+
+	newval := append(prefix, suffix...)
+	db.Set(key, newval)
+	return protocol.MakeInteger(int64(len(newval)))
+}
+
 func init() {
-	RegisterCommand("get", 2, get)
-	RegisterCommand("set", -3, set)
-	RegisterCommand("del", -2, del)
-	RegisterCommand("getdel", 2, getdel)
-	RegisterCommand("getex", -2, getex)
-	RegisterCommand("getrange", 4, getrange)
-	RegisterCommand("incr", 2, incr)
-	RegisterCommand("incrby", 3, incrby)
-	RegisterCommand("decr", 2, decr)
-	RegisterCommand("decrby", 3, decrby)
-	RegisterCommand("incrbyfloat", 3, incrbyfloat)
+	RegisterCommand("get", 2, getCommand)
+	RegisterCommand("set", -3, setCommand)
+	RegisterCommand("del", -2, delCommand)
+	RegisterCommand("getdel", 2, getdelCommand)
+	RegisterCommand("getex", -2, getexCommand)
+	RegisterCommand("getrange", 4, getrangeCommand)
+	RegisterCommand("incr", 2, incrCommand)
+	RegisterCommand("incrby", 3, incrbyCommand)
+	RegisterCommand("decr", 2, decrCommand)
+	RegisterCommand("decrby", 3, decrbyCommand)
+	RegisterCommand("incrbyfloat", 3, incrbyfloatCommand)
+	RegisterCommand("append", 3, appendCommand)
 }
 
 // withFlags checks if the given flag contains some of the given flags.
