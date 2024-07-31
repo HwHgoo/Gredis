@@ -270,7 +270,7 @@ func TestGetDELCommand(t *testing.T) {
 				patch := c.patch(patch)
 				defer patch.Reset()
 
-				msg := getCommand(db, [][]byte{[]byte("key")}) // no need to check args because it's checked before getCommand
+				msg := getdelCommand(db, [][]byte{[]byte("key")}) // no need to check args because it's checked before getCommand
 				So(msg, ShouldEqual, c.expect)
 			})
 		}
@@ -339,6 +339,45 @@ func TestGetExCommand(t *testing.T) {
 	})
 }
 
+func TestGetRangeCommand(t *testing.T) {
+	type testcase struct {
+		name   string
+		args   string
+		patch  func(patch *Patches) *Patches
+		expect protocol.RedisMessage
+	}
+
+	cases := []testcase{
+		{"Start is not integer", "key a 1", nil, &protocol.InvalidIntegerError},
+		{"End is not integer", "key 1 b", nil, &protocol.InvalidIntegerError},
+		{"Start is greater than end", "key 2 1", nil, protocol.MakeBulkString(nil)},
+		{"Get exist key and value type is string", "key 0 1", simGetExistOk, protocol.MakeBulkString([]byte("te"))},
+		{"Get non-exist key", "key 0 1", simGetNonExistKey, protocol.MakeBulkString(nil)},
+		{"Get exist key but value type is not string", "key 0 1", simGetWrongType, &protocol.WrongTypeError},
+		{"Negative start and end", "key -2 -1", simGetExistOk, protocol.MakeBulkString([]byte("st"))},
+		{"Start is greater than length of string", "key 10 100", simGetExistOk, protocol.MakeBulkString(nil)},
+		{"End is greater than length of string", "key 0 100", simGetExistOk, protocol.MakeBulkString([]byte("test"))},
+	}
+
+	Convey("TestGetRangeCommand", t, func() {
+		db := MakeDatabase()
+		for _, c := range cases {
+			Convey(c.name, func() {
+				var patch *Patches
+				if c.patch != nil {
+					patch = c.patch(NewPatches())
+					defer patch.Reset()
+				}
+
+				args := parseargs(c.args)
+				msg := getrangeCommand(db, args)
+				So(msg, ShouldEqual, c.expect)
+			})
+		}
+	})
+
+}
+
 func BenchmarkIncrByFloat(b *testing.B) {
 	db := MakeDatabase()
 	db.Set("a", 0.1)
@@ -357,4 +396,13 @@ func BenchmarkIncrByFloat(b *testing.B) {
 			incrbyfloatCommand(db, args)
 		}
 	})
+}
+
+func parseargs(args string) CommandParams {
+	parts := strings.Split(args, " ")
+	params := make([][]byte, 0, len(parts))
+	for _, p := range parts {
+		params = append(params, []byte(p))
+	}
+	return params
 }
