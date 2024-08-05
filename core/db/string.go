@@ -226,14 +226,28 @@ func getrangeCommand(db *Database, args CommandParams) protocol.RedisMessage {
 		return protocol.MakeBulkString(nil)
 	}
 
-	b, err := db.getAsString(key)
-	if err != nil {
-		return protocol.MakeBulkString(b)
+	b, rerr := db.getAsString(key)
+	if rerr != nil {
+		return rerr
+	}
+
+	if b == nil {
+		return protocol.MakeBulkString(nil)
+	}
+
+	if start >= int64(len(b)) {
+		return protocol.MakeBulkString(nil)
+	}
+
+	if end >= int64(len(b)) {
+		end = int64(len(b)) - 1
 	}
 
 	length := int64(len(b))
-	start = (start + length) % length
-	end = (end + length) % length
+	if start < 0 {
+		start += length
+		end += length
+	}
 
 	return protocol.MakeBulkString(b[start : end+1])
 }
