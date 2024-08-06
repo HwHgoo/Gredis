@@ -56,11 +56,8 @@ func (sl *skiplist) Insert(name string, score float64) *skiplistNode {
 	node := sl.head
 	update := make([]*skiplistNode, maxLevel)
 	for i := sl.level - 1; i >= 0; i-- {
-		for {
-			if node.level[i].foward == nil || node.level[i].foward.score > score {
-				break
-			}
-
+		for node.level[i].foward != nil && (node.level[i].foward.score < score ||
+			(node.level[i].foward.score == score && node.level[i].foward.name < name)) {
 			node = node.level[i].foward
 		}
 		update[i] = node
@@ -104,7 +101,7 @@ func (sl *skiplist) Delete(name string, score float64) int {
 	x := sl.head
 	update := make([]*skiplistNode, maxLevel)
 	for i := sl.level - 1; i >= 0; i-- {
-		for x.level[i] != nil && (x.level[i].foward.score < score ||
+		for x.level[i].foward != nil && (x.level[i].foward.score < score ||
 			(x.level[i].foward.score == score && x.level[i].foward.name < name)) {
 			x = x.level[i].foward
 		}
