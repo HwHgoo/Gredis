@@ -55,9 +55,14 @@ func (sl *skiplist) Length() int { return sl.length }
 func (sl *skiplist) Insert(name string, score float64) *skiplistNode {
 	node := sl.head
 	update := make([]*skiplistNode, maxLevel)
+	rank := make([]uint32, maxLevel)
 	for i := sl.level - 1; i >= 0; i-- {
+		if i != sl.level-1 {
+			rank[i] = rank[i+1]
+		}
 		for node.level[i].foward != nil && (node.level[i].foward.score < score ||
 			(node.level[i].foward.score == score && node.level[i].foward.name < name)) {
+			rank[i] += node.level[i].span
 			node = node.level[i].foward
 		}
 		update[i] = node
@@ -67,6 +72,8 @@ func (sl *skiplist) Insert(name string, score float64) *skiplistNode {
 	if level > sl.level {
 		for i := sl.level; i < level; i++ {
 			update[i] = sl.head
+			rank[i] = 0
+			update[i].level[i].span = uint32(sl.length)
 		}
 		sl.level = level
 	}
@@ -81,6 +88,9 @@ func (sl *skiplist) Insert(name string, score float64) *skiplistNode {
 		x.level[i] = &skiplistLevel{foward: nil, span: 0}
 		x.level[i].foward = update[i].level[i].foward
 		update[i].level[i].foward = x
+
+		x.level[i].span = update[i].level[i].span - (rank[0] - rank[i])
+		update[i].level[i].span = rank[0] - rank[i] + 1
 	}
 	if x.level[0].foward != nil {
 		x.level[0].foward.backward = x
@@ -122,6 +132,7 @@ func (sl *skiplist) deleteNode(x *skiplistNode, update []*skiplistNode) {
 	for i := 0; i < sl.level; i++ {
 		if update[i].level[i].foward == x {
 			update[i].level[i].foward = x.level[i].foward
+			update[i].level[i].span += x.level[i].span - 1
 		}
 	}
 
