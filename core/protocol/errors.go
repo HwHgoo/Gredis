@@ -16,6 +16,12 @@ var (
 	InvalidFloatError      = redisErrorMessage{[]byte("-ERR value is not an float\r\n")}
 	InvalidExpireTimeError = redisErrorMessage{[]byte("-ERR invalid expire time in EXPIRE command\r\n")}
 	OffsetOutofRangeError  = redisErrorMessage{[]byte("-ERR offset out of range\r\n")}
+	NanError               = redisErrorMessage{[]byte("-ERR result score is not a number (NaN)\r\n")}
+	MinOrMaxNotFloatError  = redisErrorMessage{[]byte("-ERR min or max is not a float\r\n")}
+
+	ZSetNXAndXXError        = redisErrorMessage{[]byte("-ERR XX and NX options at the same time are not compatible\r\n")}
+	ZSetGTLTAndNXError      = redisErrorMessage{[]byte("-ERR GT, LT, and/or NX options at the same time are not compatible\r\n")}
+	ZSetIncrMultiPairsError = redisErrorMessage{[]byte("-ERR INCR option supports a single score-member pair only\r\n")}
 )
 
 func (e redisErrorMessage) Bytes() []byte { return e.msg }
