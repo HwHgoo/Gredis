@@ -8,18 +8,27 @@ import (
 const (
 	maxLevel = 32            // max level of skiplist
 	p        = float64(0.25) // probability of increasing level
-	// which makSes the average level of the list is 1/(1-0.25) = 1.33
+	// which makes the average level of the list is 1/(1-0.25) = 1.33
+
+	skiplist_max_search = 10
 )
 
 type SkipList interface {
 	Insert(name string, score float64) *skiplistNode
 	Delete(name string, score float64) int
+	NthInRange(zrange *ZRangeSpec, n int) *skiplistNode
+	GetRank(name string, score float64) int
 	Length() int
+}
+
+type SkipListNode interface {
+	Name() string
+	Score() float64
 }
 
 type skiplistLevel struct {
 	foward *skiplistNode
-	span   uint32
+	span   int
 }
 
 type skiplistNode struct {
@@ -35,6 +44,9 @@ type skiplist struct {
 	level  int
 	length int
 }
+
+func (node *skiplistNode) Name() string   { return node.name }
+func (node *skiplistNode) Score() float64 { return node.score }
 
 func NewSkipList() SkipList {
 	head := &skiplistNode{
@@ -55,7 +67,7 @@ func (sl *skiplist) Length() int { return sl.length }
 func (sl *skiplist) Insert(name string, score float64) *skiplistNode {
 	node := sl.head
 	update := make([]*skiplistNode, maxLevel)
-	rank := make([]uint32, maxLevel)
+	rank := make([]int, maxLevel)
 	for i := sl.level - 1; i >= 0; i-- {
 		if i != sl.level-1 {
 			rank[i] = rank[i+1]
@@ -73,7 +85,7 @@ func (sl *skiplist) Insert(name string, score float64) *skiplistNode {
 		for i := sl.level; i < level; i++ {
 			update[i] = sl.head
 			rank[i] = 0
-			update[i].level[i].span = uint32(sl.length)
+			update[i].level[i].span = sl.length
 		}
 		sl.level = level
 	}
@@ -149,11 +161,130 @@ func (sl *skiplist) deleteNode(x *skiplistNode, update []*skiplistNode) {
 	sl.length--
 }
 
-func (sl *skiplist) Contains(name string) bool { return false }
+func (sl *skiplist) NthInRange(zrange *ZRangeSpec, n int) *skiplistNode {
+	// check if sl is in range
+	if !sl.InRange(zrange) {
+		return nil
+	}
+	x := sl.head
+	edge_rank := 0
+	i := sl.level - 1
+	for x.level[i].foward != nil && !zrange.ValueGteMin(x.level[i].foward.score) {
+		edge_rank += x.level[i].span
+		x = x.level[i].foward
+	}
+	last_highest_level_node := x
+	last_highest_level_node_rank := edge_rank
 
-func (sl *skiplist) GetScore(name string) (float64, bool) { return 0, false }
+	if n >= 0 {
+		for i = sl.level - 2; i >= 0; i-- {
+			for x.level[i].foward != nil && !zrange.ValueGteMin(x.level[i].foward.score) {
+				edge_rank += x.level[i].span
+				x = x.level[i].foward
+			}
+		}
 
-func (sl *skiplist) GetRange(start, end float64) []string { return nil }
+		// check if n is out of the list
+		if edge_rank+n >= sl.length {
+			return nil
+		}
+
+		if n < skiplist_max_search {
+			// if offset is small, we just jump node by node
+			for i = 0; i < n+1; i++ {
+				x = x.level[0].foward
+			}
+		} else {
+			rank_diff := edge_rank - last_highest_level_node_rank + n + 1
+			x = sl.GetElementByRankFromNode(last_highest_level_node, sl.level-1, rank_diff)
+		}
+		if x != nil && !zrange.ValueLteMax(x.score) {
+			return nil
+		}
+	} else {
+		for i = sl.level - 1; i >= 0; i-- {
+			for x.level[i].foward != nil && zrange.ValueLteMax(x.level[i].foward.score) {
+				edge_rank += x.level[i].span // the rank of the last node in the range
+				x = x.level[i].foward        // last node in the range
+			}
+		}
+
+		if edge_rank < -n {
+			return nil
+		}
+
+		// when n is negative, n is -1 based
+		if -n-1 < skiplist_max_search {
+			for i = 0; i < -n-1; i++ {
+				x = x.backward
+			}
+		} else {
+			rank_diff := edge_rank - last_highest_level_node_rank + n + 1
+			x = sl.GetElementByRankFromNode(last_highest_level_node, sl.level-1, rank_diff)
+		}
+
+		if x != nil && !zrange.ValueGteMin(x.score) {
+			return nil
+		}
+	}
+
+	return x
+}
+
+func (sl *skiplist) GetRank(name string, score float64) int {
+	rank := 0
+	x := sl.head
+	for i := sl.level - 1; i >= 0; i-- {
+		for x.level[i].foward != nil && (x.level[i].foward.score < score ||
+			(x.level[i].foward.score == score && x.level[i].foward.name < name)) {
+			rank += x.level[i].span
+			x = x.level[i].foward
+		}
+	}
+
+	x = x.level[0].foward
+	if x == nil || x.name != name || x.score != score {
+		return 0
+	}
+
+	return rank
+}
+
+// Get an element by rank from the given node. The rank needs to be 1-based.
+func (sl *skiplist) GetElementByRankFromNode(node *skiplistNode, start_level int, rank int) *skiplistNode {
+	x := node
+	traversed := 0
+	for i := start_level; i >= 0; i-- {
+		for x.level[i].foward != nil && traversed+int(x.level[i].span) <= rank {
+			traversed += int(x.level[i].span)
+			x = x.level[i].foward
+		}
+
+		if traversed == rank {
+			return x
+		}
+	}
+
+	return nil
+}
+
+func (sl *skiplist) InRange(zrange *ZRangeSpec) bool {
+	if zrange.Min > zrange.Max || (zrange.Min == zrange.Max && (zrange.MinEx || zrange.MaxEx)) {
+		return false
+	}
+
+	x := sl.head.level[0].foward
+	if x == nil || !zrange.ValueLteMax(x.score) {
+		return false
+	}
+
+	x = sl.tail
+	if x == nil || !zrange.ValueGteMin(x.score) {
+		return false
+	}
+
+	return true
+}
 
 func randomLevel() int {
 	level := 1
