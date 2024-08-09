@@ -24,3 +24,8 @@ func RegisterCommand(name string, arity int, exec CommandExecutor) {
 	name = strings.ToLower(name)
 	commands[name] = &Command{name: name, arity: arity, exec: exec}
 }
+
+func init() {
+	registerStringCommands()
+	registerZSetCommands()
+}

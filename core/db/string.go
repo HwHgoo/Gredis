@@ -637,7 +637,18 @@ func lcsCommand(db *Database, args CommandParams) protocol.RedisMessage {
 	})
 }
 
-func init() {
+// withFlags checks if the given flag contains some of the given flags.
+func withFlags(flag int, flags ...int) bool {
+	for _, f := range flags {
+		if flag&f != 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func registerStringCommands() {
+	// string commands
 	RegisterCommand("set", -3, setCommand)
 	RegisterCommand("mset", -3, msetCommand)
 	RegisterCommand("setrange", 4, setrangeCommand)
@@ -655,14 +666,4 @@ func init() {
 	RegisterCommand("append", 3, appendCommand)
 	RegisterCommand("lcs", -3, lcsCommand)
 	RegisterCommand("strlen", 2, strlenCommand)
-}
-
-// withFlags checks if the given flag contains some of the given flags.
-func withFlags(flag int, flags ...int) bool {
-	for _, f := range flags {
-		if flag&f != 0 {
-			return true
-		}
-	}
-	return false
 }
