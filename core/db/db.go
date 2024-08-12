@@ -4,6 +4,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/HwHgoo/Gredis/core/command"
+	"github.com/HwHgoo/Gredis/core/interface/redis"
 	"github.com/HwHgoo/Gredis/core/protocol"
 	"github.com/HwHgoo/Gredis/datastructure"
 )
@@ -23,6 +25,10 @@ func MakeDatabase() *Database {
 		data:    datastructure.MakeNewConcurrentMap[any](),
 		expires: datastructure.MakeNewConcurrentMap[time.Time](),
 	}
+}
+
+func (db *Database) Exec(conn redis.Connection, args [][]byte) protocol.RedisMessage {
+	return db.execNormal(args)
 }
 
 func (db *Database) Get(key string) (value any, ok bool) {
@@ -74,28 +80,9 @@ func (db *Database) Persist(key string) {
 	db.expires.Delete(key)
 }
 
-func (db *Database) Exec(args [][]byte) protocol.RedisMessage {
+func (db *Database) execNormal(args [][]byte) protocol.RedisMessage {
 	cmdName := strings.ToLower(string(args[0]))
-	cmd, ok := commands[cmdName]
-	if !ok {
-		var startwith string
-		if len(args) > 1 && len(args[1]) > 0 {
-			startwith = string(args[1][0])
-		}
-		return protocol.MakeUnknownCommandError(cmdName, startwith)
-	}
-
-	// validate args
-	if !db.validateArity(cmd, args) {
-		return protocol.MakeWrongNumberOfArgError(cmdName)
-	}
-
-	return cmd.exec(db, args[1:])
-}
-
-func (db *Database) validateArity(cmd *Command, args [][]byte) bool {
-	return (cmd.arity >= 0 && len(args) == cmd.arity) ||
-		(cmd.arity < 0 && len(args) >= -cmd.arity)
+	return command.ExecDatabaseCommand(cmdName, db, args[1:])
 }
 
 // check if key is expired

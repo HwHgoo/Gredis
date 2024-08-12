@@ -18,6 +18,7 @@ var (
 	OffsetOutofRangeError  = redisErrorMessage{[]byte("-ERR offset out of range\r\n")}
 	NanError               = redisErrorMessage{[]byte("-ERR result score is not a number (NaN)\r\n")}
 	MinOrMaxNotFloatError  = redisErrorMessage{[]byte("-ERR min or max is not a float\r\n")}
+	DbIndexOutOfRange      = redisErrorMessage{[]byte("-ERR DB index is out of range\r\n")}
 
 	ZSetNXAndXXError        = redisErrorMessage{[]byte("-ERR XX and NX options at the same time are not compatible\r\n")}
 	ZSetGTLTAndNXError      = redisErrorMessage{[]byte("-ERR GT, LT, and/or NX options at the same time are not compatible\r\n")}

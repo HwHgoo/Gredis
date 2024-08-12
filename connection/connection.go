@@ -20,6 +20,10 @@ func (c *Connection) GetSelectedDb() int {
 	return c.selectedDb
 }
 
+func (c *Connection) SelectDb(db int) {
+	c.selectedDb = db
+}
+
 func (c *Connection) Close() {
 	c.conn.Close()
 }

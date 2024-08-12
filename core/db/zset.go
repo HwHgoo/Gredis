@@ -281,8 +281,8 @@ func makeZRange(min, max string) (*zset.ZRangeSpec, protocol.RedisErrorMessage) 
 
 func registerZSetCommands() {
 	// zset commands
-	RegisterCommand("zadd", -4, zaddCommand)
-	RegisterCommand("zcard", 2, zcardCommand)
-	RegisterCommand("zcount", 4, zcountCommand)
-	RegisterCommand("zscore", 3, zscoreCommand)
+	register("zadd", -4, zaddCommand)
+	register("zcard", 2, zcardCommand)
+	register("zcount", 4, zcountCommand)
+	register("zscore", 3, zscoreCommand)
 }
